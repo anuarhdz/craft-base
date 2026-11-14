@@ -1,0 +1,92 @@
+# Production stack for devpush (builds the `prod` stage). Local dev: compose.dev.yml.
+# Set the ${...} variables in devpush; they are not read from .env here.
+# ADAPT: lines marked ADAPT. `:?` makes a missing variable fail the deploy loudly.
+
+x-craft: &craft
+  build: .
+  restart: unless-stopped
+  environment: &craft-env
+    CRAFT_APP_ID: ${CRAFT_APP_ID:?}
+    CRAFT_SECURITY_KEY: ${CRAFT_SECURITY_KEY:?}
+    PRIMARY_SITE_URL: ${PRIMARY_SITE_URL:?}
+    CRAFT_ENVIRONMENT: production
+    CRAFT_DEV_MODE: "false"
+    CRAFT_ALLOW_ADMIN_CHANGES: "false"
+    CRAFT_DISALLOW_ROBOTS: "false"
+    # The queue service below runs jobs; web requests must not.
+    CRAFT_RUN_QUEUE_AUTOMATICALLY: "false"
+    CRAFT_DB_DRIVER: mysql
+    CRAFT_DB_SERVER: db
+    CRAFT_DB_PORT: "3306"
+    CRAFT_DB_DATABASE: craft
+    CRAFT_DB_USER: craft
+    CRAFT_DB_PASSWORD: ${DB_PASSWORD:?}
+    # ADAPT: only if project config reads mail from env (see SKILL.md step 2).
+    MAIL_FROM: ${MAIL_FROM:?}
+    SMTP_HOST: ${SMTP_HOST:?}
+    SMTP_PORT: ${SMTP_PORT:?}
+    SMTP_AUTH: "true"
+    SMTP_USER: ${SMTP_USER:?}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:?}
+    # ADAPT: Vite projects only (nystudio107/craft-vite). Remove for Mix/none.
+    VITE_MANIFEST: "@webroot/dist/.vite/manifest.json"
+    VITE_SERVER_PUBLIC: ${PRIMARY_SITE_URL:?}/dist/
+    # config/vite.php reads these into non-nullable settings, so they must be set.
+    VITE_DEV_SERVER_PUBLIC: ""
+    VITE_DEV_SERVER_INTERNAL: ""
+    VITE_ERROR_ENTRY: ""
+    # ADAPT: add every other App::env()/$VAR the project reads (plugins, license, etc.).
+  volumes:
+    # ADAPT: one named volume per upload dir, mounted under the docroot.
+    - uploads:/var/www/html/web/uploads
+    - storage:/var/www/html/storage
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  web:
+    <<: *craft
+    expose:
+      - "8080"
+    # devpush's override adds devpush-proxy to routed services. Without this explicit
+    # entry the service loses the default network and cannot reach db
+    # (symptom: `getaddrinfo for db failed`).
+    networks:
+      - default
+
+  queue:
+    <<: *craft
+    # Bypass the image's init so this container runs only the worker, not nginx.
+    # Wait for the install: the queue table does not exist before it.
+    entrypoint:
+      - sh
+      - -c
+      - until php craft install/check >/dev/null 2>&1; do sleep 15; done; exec php craft queue/listen --verbose
+    healthcheck:
+      disable: true
+
+  db:
+    # ADAPT: same engine as DDEV, same or newer version (8.0 dumps import into 8.4).
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: craft
+      MYSQL_USER: craft
+      MYSQL_PASSWORD: ${DB_PASSWORD:?}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u craft -p\"$$MYSQL_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+# Compose-scoped named volumes only: devpush scopes, backs up and retains these.
+# No bind mounts or external volumes.
+volumes:
+  uploads:
+  storage:
+  db:
