@@ -1,0 +1,12 @@
+#!/bin/sh
+# Debian's mysql/mysqldump are MariaDB clients, which reject the self-signed
+# certificate of the MySQL container. The connection stays on the private Compose
+# network, so TLS is skipped. Craft passes --defaults-file, which must stay first
+# and makes clients ignore global config, so the flag has to be added here.
+name=$(basename "$0")
+if [ "$#" -gt 0 ]; then
+  first=$1
+  shift
+  exec "/usr/bin/$name" "$first" --skip-ssl "$@"
+fi
+exec "/usr/bin/$name" --skip-ssl
