@@ -16,6 +16,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         php: ["8.4", "8.5"]
     steps:
@@ -41,3 +42,15 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/craft-base:php${{ matrix.php }}-${{ steps.date.outputs.today }}
           cache-from: type=gha,scope=php${{ matrix.php }}
           cache-to: type=gha,mode=max,scope=php${{ matrix.php }}
+
+  # GitHub disables schedules in public repos after 60 days without activity.
+  # Re-enabling the workflow resets that counter, so the weekly rebuild survives
+  # a quiet repo.
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/publish.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
