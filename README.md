@@ -37,10 +37,8 @@ Copy from `template/`:
 | `dockerignore` | `.dockerignore` |
 | `env.example.dev` | `.env` (fill `CRAFT_SECURITY_KEY`) |
 | `config/app.php` | `config/app.php` — SMTP from env (Mailpit in dev) |
+| `config/vite.php` | `config/vite.php` — craft-vite settings from `VITE_*` (Vite projects only) |
 | `vite.config.ts` | merge into yours (Vite projects only) |
-
-For Vite projects, also use `config/vite.php` from craft-chalupa: it reads all
-`VITE_*` variables and uses `checkDevServer` in dev.
 
 ### Local development
 
@@ -102,10 +100,14 @@ docker compose -f compose.yml -p prodtest --env-file /path/to/prod.env up -d --b
 `.github/workflows/publish.yml` builds both PHP versions for amd64 + arm64 on
 every push to `main`, weekly, and on demand.
 
-**After the first publish, make the package public** (GitHub → Packages →
-`craft-base` → Package settings → Change visibility). devpush builds projects
-on the server, which must pull the base image without credentials. The image
-holds no secrets.
+The package is public: it is linked to this public repo through the
+`org.opencontainers.image.source` label and inherits its visibility. devpush
+builds projects on the server, which pulls the base image without credentials,
+so keep it public (the image holds no secrets). If a server has stale
+`ghcr.io` credentials, `docker logout ghcr.io` there, or pulls fail.
+
+The `keepalive` job re-enables the workflow on every run: GitHub disables
+schedules in public repos after 60 days without activity.
 
 Local build: `docker build -t ghcr.io/anuarhdz/craft-base:php8.5 .`
 (`--build-arg PHP_VERSION=8.4` for 8.4).
