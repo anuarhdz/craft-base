@@ -29,16 +29,16 @@ Platforms: `linux/amd64`, `linux/arm64`.
 
 Copy from `template/`:
 
-| File | Into the project as |
-| --- | --- |
-| `Dockerfile` | `Dockerfile` (stages `dev`, `assets`, `prod`) |
-| `compose.yml` | `compose.yml` — production, what devpush runs |
-| `compose.dev.yml` | `compose.dev.yml` — local |
-| `dockerignore` | `.dockerignore` |
-| `env.example.dev` | `.env` (fill `CRAFT_SECURITY_KEY`) |
-| `config/app.php` | `config/app.php` — SMTP from env (Mailpit in dev) |
-| `config/vite.php` | `config/vite.php` — craft-vite settings from `VITE_*` (Vite projects only) |
-| `vite.config.ts` | merge into yours (Vite projects only) |
+| File | Into the project as | Notes |
+| --- | --- | --- |
+| `Dockerfile` | `Dockerfile` | Stages `dev`, `assets`, `prod` |
+| `compose.yml` | `compose.yml` | Production, what devpush runs |
+| `compose.dev.yml` | `compose.dev.yml` | Local |
+| `dockerignore` | `.dockerignore` | |
+| `env.example.dev` | `.env` | Fill `CRAFT_SECURITY_KEY` |
+| `config/app.php` | `config/app.php` | SMTP from env (Mailpit in dev) |
+| `config/vite.php` | `config/vite.php` | craft-vite settings from `VITE_*` (Vite projects only) |
+| `vite.config.ts` | Merge into yours | Vite projects only |
 
 ### Local development
 
@@ -87,7 +87,23 @@ created by the container stay yours. macOS needs nothing.
 ### Production (devpush)
 
 `compose.yml` builds the last stage (`prod`): vendor and assets baked in, OPcache
-on, separate `queue` worker. Follow the `devpush-craft` skill from step 5.
+on, separate `queue` worker.
+
+First deploy:
+
+1. Set the variables `compose.yml` requires (`CRAFT_APP_ID`,
+   `CRAFT_SECURITY_KEY`, `PRIMARY_SITE_URL`, `DB_PASSWORD`, `MAIL_FROM`,
+   `SMTP_*`). A missing one fails the deploy.
+2. Deploy, then install Craft once in the `web` container. Production makes
+   project config read-only, so the install has to allow admin changes for
+   that one command:
+
+   ```bash
+   docker compose exec -e CRAFT_ALLOW_ADMIN_CHANGES=true web php craft install
+   ```
+
+   Plugins are the same: `php craft plugin/install <handle>` with that flag.
+3. The `queue` service waits for the install and then starts the worker.
 
 Run the production stack locally to check a build:
 
@@ -100,14 +116,14 @@ docker compose -f compose.yml -p prodtest --env-file /path/to/prod.env up -d --b
 `.github/workflows/publish.yml` builds both PHP versions for amd64 + arm64 on
 every push to `main`, weekly, and on demand.
 
-The package is public: it is linked to this public repo through the
-`org.opencontainers.image.source` label and inherits its visibility. devpush
-builds projects on the server, which pulls the base image without credentials,
-so keep it public (the image holds no secrets). If a server has stale
-`ghcr.io` credentials, `docker logout ghcr.io` there, or pulls fail.
+The package is public. The `org.opencontainers.image.source` label links it to
+this repo, and it inherits the repo's visibility. devpush builds projects on
+the server, which pulls the base image without credentials, so keep it public
+(the image holds no secrets). If a server has stale `ghcr.io` credentials, run
+`docker logout ghcr.io` there, or pulls fail.
 
-The `keepalive` job re-enables the workflow on every run: GitHub disables
-schedules in public repos after 60 days without activity.
+GitHub disables schedules in public repos after 60 days without activity, so
+the `keepalive` job re-enables the workflow on every run.
 
 Local build: `docker build -t ghcr.io/anuarhdz/craft-base:php8.5 .`
 (`--build-arg PHP_VERSION=8.4` for 8.4).

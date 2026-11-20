@@ -21,7 +21,8 @@ x-craft: &craft
     CRAFT_DB_DATABASE: craft
     CRAFT_DB_USER: craft
     CRAFT_DB_PASSWORD: ${DB_PASSWORD:?}
-    # ADAPT: only if project config reads mail from env (see SKILL.md step 2).
+    # ADAPT: read by template/config/app.php. Drop them if the project sets
+    # mail in the control panel instead.
     MAIL_FROM: ${MAIL_FROM:?}
     SMTP_HOST: ${SMTP_HOST:?}
     SMTP_PORT: ${SMTP_PORT:?}

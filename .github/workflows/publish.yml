@@ -30,7 +30,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: date
         run: echo "today=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
-      # amd64 for the servers (miso), arm64 for Apple Silicon.
+      # amd64 for servers, arm64 for Apple Silicon (local dev).
       - uses: docker/build-push-action@v6
         with:
           context: .
